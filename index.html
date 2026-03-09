@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Postcode Lookup — Free Address Finder</title>
+    <meta name="description" content="Free UK postcode lookup tool. Enter any postcode to find the full address, county, constituency, and nearby postcodes.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏠 UK Postcode Lookup</h1>
+            <p>Enter any UK postcode to find the full address and nearby postcodes</p>
+        </header>
+
+        <div class="search-box">
+            <input type="text" id="postcodeInput" placeholder="e.g. CH1 1SL" maxlength="8" autocomplete="off">
+            <button id="searchBtn" onclick="lookupPostcode()">Search</button>
+        </div>
+
+        <div id="error" class="error" style="display:none"></div>
+
+        <div id="results" style="display:none">
+            <div class="card">
+                <h2>📍 Address Details</h2>
+                <div id="addressDetails"></div>
+            </div>
+
+            <div class="card">
+                <h2>🗺️ Location</h2>
+                <div id="locationDetails"></div>
+            </div>
+
+            <div class="card">
+                <h2>🏘️ Nearby Postcodes</h2>
+                <div id="nearbyPostcodes"></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Data from <a href="https://postcodes.io" target="_blank">postcodes.io</a> · Built by <a href="https://www.handonweb.com" target="_blank">Hand On Web</a></p>
+        </footer>
+    </div>
+
+    <script>
+        const input = document.getElementById('postcodeInput');
+        input.addEventListener('keypress', e => { if (e.key === 'Enter') lookupPostcode(); });
+
+        async function lookupPostcode() {
+            const postcode = input.value.trim();
+            if (!postcode) return;
+
+            const errorEl = document.getElementById('error');
+            const resultsEl = document.getElementById('results');
+            errorEl.style.display = 'none';
+            resultsEl.style.display = 'none';
+
+            try {
+                const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcode)}`);
+                const data = await res.json();
+
+                if (data.status !== 200) {
+                    errorEl.textContent = 'Postcode not found. Check the format and try again.';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                const r = data.result;
+
+                document.getElementById('addressDetails').innerHTML = `
+                    <table>
+                        <tr><td><strong>Postcode</strong></td><td>${r.postcode}</td></tr>
+                        <tr><td><strong>Ward</strong></td><td>${r.admin_ward || '—'}</td></tr>
+                        <tr><td><strong>District</strong></td><td>${r.admin_district || '—'}</td></tr>
+                        <tr><td><strong>County</strong></td><td>${r.admin_county || '—'}</td></tr>
+                        <tr><td><strong>Region</strong></td><td>${r.region || '—'}</td></tr>
+                        <tr><td><strong>Country</strong></td><td>${r.country || '—'}</td></tr>
+                        <tr><td><strong>Constituency</strong></td><td>${r.parliamentary_constituency || '—'}</td></tr>
+                    </table>
+                `;
+
+                const mapUrl = `https://www.google.com/maps?q=${r.latitude},${r.longitude}`;
+                document.getElementById('locationDetails').innerHTML = `
+                    <table>
+                        <tr><td><strong>Latitude</strong></td><td>${r.latitude}</td></tr>
+                        <tr><td><strong>Longitude</strong></td><td>${r.longitude}</td></tr>
+                        <tr><td><strong>View on Map</strong></td><td><a href="${mapUrl}" target="_blank">Open in Google Maps ↗</a></td></tr>
+                    </table>
+                `;
+
+                // Fetch nearby postcodes
+                const nearbyRes = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcode)}/nearest?limit=6`);
+                const nearbyData = await nearbyRes.json();
+
+                if (nearbyData.status === 200 && nearbyData.result) {
+                    const nearby = nearbyData.result
+                        .filter(n => n.postcode !== r.postcode)
+                        .slice(0, 5);
+
+                    document.getElementById('nearbyPostcodes').innerHTML = `
+                        <table>
+                            <tr><th>Postcode</th><th>District</th><th>Distance</th></tr>
+                            ${nearby.map(n => `
+                                <tr>
+                                    <td><a href="#" onclick="document.getElementById('postcodeInput').value='${n.postcode}';lookupPostcode();return false;">${n.postcode}</a></td>
+                                    <td>${n.admin_district || '—'}</td>
+                                    <td>${Math.round(n.distance)}m</td>
+                                </tr>
+                            `).join('')}
+                        </table>
+                    `;
+                }
+
+                resultsEl.style.display = 'block';
+            } catch (err) {
+                errorEl.textContent = 'Something went wrong. Check your connection and try again.';
+                errorEl.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
